@@ -9,11 +9,22 @@
 import UIKit
 import SceneKit
 import ARKit
+import AVFoundation
 
-class ViewController: UIViewController, ARSCNViewDelegate {
+class ViewController: UIViewController, ARSCNViewDelegate, AVAudioPlayerDelegate {
 
     @IBOutlet var sceneView: ARSCNView!
     
+    var source: SCNAudioSource?
+    
+    var shipNode = SCNNode()
+    
+    var timer: Timer!
+    
+    let label = UILabel()
+    
+    var audioPlayer:AVAudioPlayer!
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -21,13 +32,37 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.delegate = self
         
         // Show statistics such as fps and timing information
-        sceneView.showsStatistics = true
+        sceneView.showsStatistics = false
         
         // Create a new scene
-        let scene = SCNScene(named: "art.scnassets/ship.scn")!
+        let scene = SCNScene()
         
         // Set the scene to the view
         sceneView.scene = scene
+        
+//        source = SCNAudioSource(fileNamed: "art.scnassets/ping.aif")!
+//        source!.loops = true
+//        source!.load()
+//
+        let audioPath = Bundle.main.path(forResource: "sound", ofType:"mp3")!
+        let audioUrl = URL(fileURLWithPath: audioPath)
+        
+        var audioError:NSError?
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: audioUrl)
+        } catch let error as NSError {
+            audioError = error
+            audioPlayer = nil
+        }
+  
+        if let error = audioError {
+            print("Error \(error.localizedDescription)")
+        }
+        
+        audioPlayer.delegate = self
+        audioPlayer.prepareToPlay()
+        
+//        playSound()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -38,6 +73,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 
         // Run the view's session
         sceneView.session.run(configuration)
+        
+        timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(self.update), userInfo: nil, repeats: true)
+        timer.fire()
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -45,6 +83,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Pause the view's session
         sceneView.session.pause()
+        
+        timer.invalidate()
     }
     
     override func didReceiveMemoryWarning() {
@@ -63,18 +103,29 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
 */
     
-    func session(_ session: ARSession, didFailWithError error: Error) {
-        // Present an error message to the user
-        
+    @objc func update(tm: Timer) {
+        let hitResults = sceneView.hitTest(sceneView.center, types: [.featurePoint])
+        if !hitResults.isEmpty {
+            if let hitResult = hitResults.first {
+                let center = SCNVector3(hitResult.worldTransform.columns.3.x, hitResult.worldTransform.columns.3.y, hitResult.worldTransform.columns.3.z)
+                var distanceString = String.init(format: "%.2f", arguments: [hitResult.distance])
+                var distance = Float(distanceString)
+                print(distance)
+                
+                if distance! < Float(0.3)  {
+                     print(true)
+                     audioPlayer.play()
+                } else {
+                     print(false)
+                     audioPlayer.stop()
+                }
+            }
+        }
     }
     
-    func sessionWasInterrupted(_ session: ARSession) {
-        // Inform the user that the session has been interrupted, for example, by presenting an overlay
-        
-    }
+//    func playSound() {
+//        guard shipNode.audioPlayers.count == 0 else { return }
+//        shipNode.addAudioPlayer(SCNAudioPlayer(source: source!))
+//    }
     
-    func sessionInterruptionEnded(_ session: ARSession) {
-        // Reset tracking and/or remove existing anchors if consistent tracking is required
-        
-    }
 }
